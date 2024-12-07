@@ -12,19 +12,14 @@ pub fn part1(input: &str) -> u32 {
     let data = Data::new(input);
 
     let mut map = data.map;
-
-    if let Outcome::Exit { visited } = data.simulation(&mut map) {
-        return visited;
-    }
-
-    0
+    data.count_visited(&mut map)
 }
 
 #[aoc(day6, part2)]
 pub fn part2(input: &str) -> u32 {
     let data = Data::new(input);
     let mut visited_map = data.map;
-    let _ = data.simulation(&mut visited_map);
+    data.mark_visited(&mut visited_map);
     let result = AtomicU32::new(0);
 
     visited_map.par_iter().enumerate().for_each(|(idx, val)| {
@@ -96,12 +91,6 @@ impl Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum Outcome {
-    Exit { visited: u32 },
-    Cycle,
-}
-
 const USIZE: usize = 130;
 const ISIZE: i32 = USIZE as i32;
 
@@ -133,7 +122,39 @@ impl Data {
         Self { map, start }
     }
 
-    fn simulation(&self, map: &mut [u8; USIZE * USIZE]) -> Outcome {
+    fn mark_visited(&self, map: &mut [u8; USIZE * USIZE]) {
+        let mut pos = self.start;
+        let mut direction = Direction::North;
+        let mut movement = direction.movement();
+
+        let idx = (pos.y * ISIZE + pos.x) as usize;
+        map[idx] = direction.as_byte();
+
+        loop {
+            let next = pos + movement;
+            let idx = (next.y * ISIZE + next.x) as usize;
+
+            if next.x < 0 || next.x >= ISIZE || next.y < 0 || next.y >= ISIZE {
+                return;
+            }
+
+            match map[idx] {
+                b'#' => {
+                    direction.next();
+                    movement = direction.movement();
+                }
+                b'.' => {
+                    map[idx] = direction.as_byte();
+                    pos = next;
+                }
+                _ => {
+                    pos = next;
+                }
+            }
+        }
+    }
+
+    fn count_visited(&self, map: &mut [u8; USIZE * USIZE]) -> u32 {
         let mut pos = self.start;
         let mut direction = Direction::North;
         let mut movement = direction.movement();
@@ -147,7 +168,7 @@ impl Data {
             let idx = (next.y * ISIZE + next.x) as usize;
 
             if next.x < 0 || next.x >= ISIZE || next.y < 0 || next.y >= ISIZE {
-                return Outcome::Exit { visited };
+                return visited;
             }
 
             match map[idx] {
@@ -160,11 +181,7 @@ impl Data {
                     visited += 1;
                     pos = next;
                 }
-                val if val & direction.as_byte() == direction.as_byte() => {
-                    return Outcome::Cycle;
-                }
                 _ => {
-                    map[idx] |= direction.as_byte();
                     pos = next;
                 }
             }
