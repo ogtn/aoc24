@@ -68,65 +68,75 @@ pub fn part1(input: &str) -> i64 {
     checksum
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 struct Block {
-    pos: usize,
-    size: u8,
+    size_pos: u32,
 }
 
-#[derive(Debug, Default)]
-struct Disk {
-    blanks: Vec<Block>,
-    files: Vec<Block>,
-}
-
-impl std::fmt::Display for Disk {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (id, file) in self.files.iter().enumerate() {
-            for _ in 0..file.pos {
-                write!(f, ".");
-            }
-
-            for _ in 0..file.size {
-                write!(f, "{id}");
-            }
-
-            writeln!(f);
+impl Block {
+    #[inline(always)]
+    fn new(size: u8, pos: u32) -> Self {
+        Self {
+            size_pos: ((size as u32) << 24) | pos,
         }
+    }
 
-        for blank in &self.blanks {
-            for _ in 0..blank.pos {
-                write!(f, "x");
-            }
+    #[inline(always)]
+    fn pos(&self) -> u32 {
+        self.size_pos & 0x00_FF_FF_FF
+    }
 
-            for _ in 0..blank.size {
-                write!(f, ".");
-            }
+    #[inline(always)]
+    fn size(&self) -> u8 {
+        ((self.size_pos >> 24) & 0x00_00_00_FF) as u8
+    }
 
-            writeln!(f);
-        }
+    #[inline(always)]
+    fn mv(&mut self, pos: u32) {
+        self.size_pos &= 0xFF_00_00_00;
+        self.size_pos |= pos;
+    }
 
-        write!(f, "")
+    #[inline(always)]
+    fn set_size(&mut self, size: u8) {
+        self.size_pos &= 0x00_FF_FF_FF;
+        self.size_pos |= (size as u32) << 24;
     }
 }
 
+#[derive(Debug)]
+struct Disk {
+    blanks: [Block; 10_000],
+    files: [Block; 10_000],
+}
+
 fn parse_2(input: &str) -> Disk {
-    let mut disk = Disk::default();
+    let mut disk = Disk {
+        blanks: [Block { size_pos: 0 }; 10_000],
+        files: [Block { size_pos: 0 }; 10_000],
+    };
+
     let mut is_file = true;
     let mut pos = 0;
+    let mut files_count = 0;
+    let mut blank_count = 0;
 
     for size in input.bytes() {
         let size = size - b'0';
 
-        if is_file {
-            disk.files.push(Block { pos, size });
-            is_file = false;
-        } else {
-            disk.blanks.push(Block { pos, size });
-            is_file = true;
-        };
+        unsafe {
+            if is_file {
+                *disk.files.get_unchecked_mut(files_count) = Block::new(size, pos);
+                files_count += 1;
+                is_file = false;
+            } else {
+                *disk.blanks.get_unchecked_mut(blank_count) = Block::new(size, pos);
+                blank_count += 1;
+                is_file = true;
+            };
+        }
 
-        pos += size as usize;
+        pos += size as u32;
     }
 
     disk
@@ -135,36 +145,49 @@ fn parse_2(input: &str) -> Disk {
 #[aoc(day9, part2)]
 pub fn part2(input: &str) -> usize {
     let mut disk = parse_2(input);
+    // let mut first = [0; 10];
+    let mut first = 0;
 
-    // println!("before: {:#?}", disk);
-    // println!("{disk}");
+    for file in disk.files.iter_mut().rev() {
+        let mut found = false;
+        let file_size = file.size();
 
-    for (id, file) in disk.files.iter_mut().enumerate().rev() {
-        for blank in &mut disk.blanks {
-            if blank.pos >= file.pos {
-                break;
-            }
+        unsafe {
+            // let start = *first.get_unchecked(file.size() as usize);
 
-            if blank.size >= file.size {
-                // println!("moving file {}:{:?} to {:?}", id, file, blank);
-                file.pos = blank.pos;
-                blank.size -= file.size;
-                blank.pos += file.size as usize;
-                // println!("after move file {}:{:?}, blank: {:?}", id, file, blank);
-                break;
+            for (pos, blank) in &mut disk
+                .blanks
+                .get_unchecked_mut(first..)
+                .iter_mut()
+                .enumerate()
+            {
+                if blank.pos() >= file.pos() {
+                    break;
+                }
+
+                if !found && blank.size() > 0 {
+                    found = true;
+                    first += pos;
+                    // *first.get_unchecked_mut(pos) += pos;
+                }
+
+                if blank.size() >= file_size {
+                    file.mv(blank.pos());
+                    blank.set_size(blank.size() - file_size);
+                    blank.mv(blank.pos() + file_size as u32);
+                    // *first.get_unchecked_mut(pos) += pos + 1;
+
+                    break;
+                }
             }
         }
     }
 
-    // println!("after: {:#?}", disk);
-    // println!("{disk}");
-
     let mut checksum = 0;
 
     for (id, file) in disk.files.iter_mut().enumerate().rev() {
-        for offset in 0..file.size {
-            // println!("{id} * {pos}");
-            checksum += id * (file.pos + offset as usize);
+        for offset in 0..file.size() {
+            checksum += id * (file.pos() as usize + offset as usize);
         }
     }
 
