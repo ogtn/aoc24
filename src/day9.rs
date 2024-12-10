@@ -62,9 +62,6 @@ pub fn part1(input: &str) -> i64 {
         checksum += pos as i64 * *id as i64;
     }
 
-    // println!("{:2?}", src);
-    // println!("{:2?}", dst);
-
     checksum
 }
 
@@ -145,19 +142,18 @@ fn parse_2(input: &str) -> Disk {
 #[aoc(day9, part2)]
 pub fn part2(input: &str) -> usize {
     let mut disk = parse_2(input);
-    // let mut first = [0; 10];
-    let mut first = 0;
+    let mut starts = [0; 10];
+    let mut checksum = 0;
 
-    for file in disk.files.iter_mut().rev() {
-        let mut found = false;
+    for (id, file) in disk.files.iter_mut().enumerate().rev() {
         let file_size = file.size();
 
         unsafe {
-            // let start = *first.get_unchecked(file.size() as usize);
+            let start = starts.get_unchecked_mut(file_size as usize);
 
             for (pos, blank) in &mut disk
                 .blanks
-                .get_unchecked_mut(first..)
+                .get_unchecked_mut(*start..)
                 .iter_mut()
                 .enumerate()
             {
@@ -165,28 +161,18 @@ pub fn part2(input: &str) -> usize {
                     break;
                 }
 
-                if !found && blank.size() > 0 {
-                    found = true;
-                    first += pos;
-                    // *first.get_unchecked_mut(pos) += pos;
-                }
-
                 if blank.size() >= file_size {
+                    *start += pos;
                     file.mv(blank.pos());
                     blank.set_size(blank.size() - file_size);
                     blank.mv(blank.pos() + file_size as u32);
-                    // *first.get_unchecked_mut(pos) += pos + 1;
 
                     break;
                 }
             }
         }
-    }
 
-    let mut checksum = 0;
-
-    for (id, file) in disk.files.iter_mut().enumerate().rev() {
-        for offset in 0..file.size() {
+        for offset in 0..file_size {
             checksum += id * (file.pos() as usize + offset as usize);
         }
     }
