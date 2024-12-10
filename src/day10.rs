@@ -1,9 +1,7 @@
-use std::collections::HashSet;
-
 use aoc_runner_derive::aoc;
 
 #[aoc(day10, part1)]
-pub fn part1(input: &str) -> usize {
+pub fn part1(input: &str) -> i32 {
     let mut map = [0; 55 * 55];
     let mut size = 1;
 
@@ -14,45 +12,38 @@ pub fn part1(input: &str) -> usize {
 
     let map = &map[0..size * size];
     let mut paths = 0;
+    let mut candidates = Vec::with_capacity(32);
 
     for (idx, b) in map.iter().enumerate() {
         if *b == b'0' {
             let x = (idx % size) as i8;
             let y = (idx / size) as i8;
 
-            // println!("start @ ({};{})", x, y);
-            paths += find_paths(map, size as i8, x, y);
+            candidates.push(Position { next: b'0', x, y });
+            paths += find_paths(&mut candidates, map, size as i8);
         }
     }
 
     paths
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug)]
 struct Position {
     next: u8,
     x: i8,
     y: i8,
 }
 
-fn find_paths(map: &[u8], size: i8, x: i8, y: i8) -> usize {
-    let mut candidates = Vec::new();
-    let mut set = HashSet::new();
-
-    candidates.push(Position { next: b'0', x, y });
+fn find_paths(candidates: &mut Vec<Position>, map: &[u8], size: i8) -> i32 {
+    let mut solutions = Vec::with_capacity(16);
 
     while let Some(candidate) = candidates.pop() {
-        // println!("checking {:?}", candidate);
-
         if candidate.x >= 0 && candidate.x < size && candidate.y >= 0 && candidate.y < size {
-            // println!("in bounds");
-
             let idx = candidate.y as usize * size as usize + candidate.x as usize;
 
             if map[idx] == candidate.next {
                 if candidate.next == b'9' {
-                    // println!("found 9: {:?}", candidate);
-                    set.insert(candidate);
+                    solutions.push(idx as i32);
                 } else {
                     candidates.push(Position {
                         next: candidate.next + 1,
@@ -75,15 +66,24 @@ fn find_paths(map: &[u8], size: i8, x: i8, y: i8) -> usize {
                         y: candidate.y - 1,
                     });
                 }
-            } else {
-                // println!("value is {}, not {}", map[idx], candidate.next);
             }
         }
     }
 
-    // println!("rating: {}", set.len());
+    solutions.sort();
 
-    set.len()
+    let mut count = 0;
+    let mut prev = -1;
+
+    for n in solutions {
+        if n != prev {
+            count += 1;
+        }
+
+        prev = n;
+    }
+
+    count
 }
 
 #[aoc(day10, part2)]
@@ -98,37 +98,30 @@ pub fn part2(input: &str) -> usize {
 
     let map = &map[0..size * size];
     let mut paths = 0;
+    let mut candidates = Vec::with_capacity(32);
 
     for (idx, b) in map.iter().enumerate() {
         if *b == b'0' {
             let x = (idx % size) as i8;
             let y = (idx / size) as i8;
 
-            // println!("start @ ({};{})", x, y);
-            paths += find_all_paths(map, size as i8, x, y);
+            candidates.push(Position { next: b'0', x, y });
+            paths += find_all_paths(&mut candidates, map, size as i8);
         }
     }
 
     paths
 }
 
-fn find_all_paths(map: &[u8], size: i8, x: i8, y: i8) -> usize {
-    let mut candidates = Vec::new();
+fn find_all_paths(candidates: &mut Vec<Position>, map: &[u8], size: i8) -> usize {
     let mut count = 0;
 
-    candidates.push(Position { next: b'0', x, y });
-
     while let Some(candidate) = candidates.pop() {
-        // println!("checking {:?}", candidate);
-
         if candidate.x >= 0 && candidate.x < size && candidate.y >= 0 && candidate.y < size {
-            // println!("in bounds");
-
             let idx = candidate.y as usize * size as usize + candidate.x as usize;
 
-            if map[idx] == candidate.next {
+            if *unsafe { map.get_unchecked(idx) } == candidate.next {
                 if candidate.next == b'9' {
-                    // println!("found 9: {:?}", candidate);
                     count += 1;
                 } else {
                     candidates.push(Position {
@@ -152,13 +145,9 @@ fn find_all_paths(map: &[u8], size: i8, x: i8, y: i8) -> usize {
                         y: candidate.y - 1,
                     });
                 }
-            } else {
-                // println!("value is {}, not {}", map[idx], candidate.next);
             }
         }
     }
-
-    // println!("rating: {}", set.len());
 
     count
 }
