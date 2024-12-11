@@ -1,4 +1,5 @@
 use aoc_runner_derive::aoc;
+use bitvec::vec::BitVec;
 
 #[aoc(day10, part1)]
 pub fn part1(input: &str) -> i32 {
@@ -35,15 +36,18 @@ struct Position {
 }
 
 fn find_paths(candidates: &mut Vec<Position>, map: &[u8], size: i8) -> i32 {
-    let mut solutions = Vec::with_capacity(16);
+    let mut solutions = 0;
+    let mut cache: BitVec = BitVec::repeat(false, size as usize * size as usize);
 
     while let Some(candidate) = candidates.pop() {
         if candidate.x >= 0 && candidate.x < size && candidate.y >= 0 && candidate.y < size {
             let idx = candidate.y as usize * size as usize + candidate.x as usize;
 
-            if map[idx] == candidate.next {
+            if map[idx] == candidate.next && !cache[idx] {
+                cache.set(idx, true);
+
                 if candidate.next == b'9' {
-                    solutions.push(idx as i32);
+                    solutions += 1;
                 } else {
                     candidates.push(Position {
                         next: candidate.next + 1,
@@ -70,20 +74,7 @@ fn find_paths(candidates: &mut Vec<Position>, map: &[u8], size: i8) -> i32 {
         }
     }
 
-    solutions.sort();
-
-    let mut count = 0;
-    let mut prev = -1;
-
-    for n in solutions {
-        if n != prev {
-            count += 1;
-        }
-
-        prev = n;
-    }
-
-    count
+    solutions
 }
 
 #[aoc(day10, part2)]
@@ -120,7 +111,7 @@ fn find_all_paths(candidates: &mut Vec<Position>, map: &[u8], size: i8) -> usize
         if candidate.x >= 0 && candidate.x < size && candidate.y >= 0 && candidate.y < size {
             let idx = candidate.y as usize * size as usize + candidate.x as usize;
 
-            if *unsafe { map.get_unchecked(idx) } == candidate.next {
+            if map[idx] == candidate.next {
                 if candidate.next == b'9' {
                     count += 1;
                 } else {
